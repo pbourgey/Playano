@@ -29,7 +29,8 @@ export class MicrophoneListener {
     return this.analyser !== null;
   }
 
-  async start(): Promise<void> {
+  /** `deviceId` : micro choisi par l'utilisateur (sinon celui par défaut). */
+  async start(deviceId = ''): Promise<void> {
     if (this.active) return;
     const generation = ++this.generation;
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -45,7 +46,12 @@ export class MicrophoneListener {
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         // Ces traitements, pensés pour la voix, déforment le son d'un instrument.
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: {
+          deviceId: deviceId ? { ideal: deviceId } : undefined,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       });
     } catch (error) {
       void context.close();
@@ -75,6 +81,12 @@ export class MicrophoneListener {
     const pitchSize = Math.min(this.analyser.fftSize, Math.max(2048, this.detector.recommendedBufferSize));
     this.pitchBuffer = this.buffer.subarray(this.buffer.length - pitchSize);
     this.tracker.reset();
+  }
+
+  /** Micros disponibles (leurs noms ne sont connus qu'une fois le micro autorisé). */
+  static async inputs(): Promise<MediaDeviceInfo[]> {
+    const devices = (await navigator.mediaDevices?.enumerateDevices?.()) ?? [];
+    return devices.filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default');
   }
 
   /** Relance l'analyse si le navigateur l'a suspendue (onglet masqué, appel…). À appeler lors d'un clic. */

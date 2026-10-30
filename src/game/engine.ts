@@ -16,6 +16,8 @@ export interface GameOptions {
   speed: number;
   /** Temps (s, en temps réel) affiché avant la première note. */
   leadIn?: number;
+  /** Fin du morceau (s), quand l'accompagnement continue après la dernière note à jouer. */
+  songEnd?: number;
 }
 
 /**
@@ -69,7 +71,8 @@ export class GameEngine {
     const first = this.notes[0]?.time ?? 0;
     this.time = Math.min(0, first) - (options.leadIn ?? 3) * this.speed;
     const last = this.notes[this.notes.length - 1];
-    this.endTime = last ? last.time + last.duration + OUTRO : 0;
+    const melodyEnd = last ? last.time + last.duration : 0;
+    this.endTime = Math.max(melodyEnd, options.songEnd ?? 0) + OUTRO;
   }
 
   get target(): GameNote | undefined {

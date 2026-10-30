@@ -68,12 +68,23 @@ function odeALaJoie(): Uint8Array {
     [DO, 1], [RE, 1], [SOL2, 2],
   ];
 
+  // Main gauche : une basse par mesure (Do / Sol).
+  const bassA: Step[] = [[48, 4], [43, 4], [48, 4], [43, 4]];
+  const bassB: Step[] = [[48, 4], [43, 4], [48, 4], [43, 2], [48, 2]];
+  const bassMiddle: Step[] = [[43, 4], [48, 4], [43, 4], [48, 2], [43, 2]];
+
   return writeMidi(
     [
       {
         name: 'Mélodie',
         program: 0,
         notes: sequence([...phrase1, ...end1, ...phrase1, ...end2, ...middle, ...phrase1, ...end2]),
+      },
+      {
+        name: 'Main gauche',
+        channel: 1,
+        program: 0,
+        notes: sequence([...bassA, ...bassB, ...bassMiddle, ...bassB]).map((n) => ({ ...n, velocity: 60 })),
       },
     ],
     100,
