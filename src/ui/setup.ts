@@ -1,7 +1,7 @@
 import type { App, SongSource } from '../app';
 import { instrumentName, isDrumTrack, parseMidi, type MidiTrack } from '../midi/parser';
 import { noteNameWithOctave } from '../notes';
-import { extractMelody } from '../song/melody';
+import { extractAccompaniment, extractMelody } from '../song/melody';
 import { getSong, saveSong } from '../storage/library';
 import { el, type Screen } from './dom';
 
@@ -33,13 +33,27 @@ export function setupScreen(app: App, song: SongSource): Screen {
   const summary = el('p', { class: 'summary' });
   const startButton = el('button', { class: 'primary big', type: 'button' }, 'Commencer');
 
+  const accompanimentSummary = el('p', { class: 'muted' });
+
   const melody = () => extractMelody([...selected].flatMap((i) => midi.tracks[i].notes));
+  // La batterie n'est pas jouée : le petit synthétiseur ne sait faire que du piano.
+  const accompaniment = (notes = melody()) =>
+    extractAccompaniment(
+      midi.tracks.filter((t) => !isDrumTrack(t)).flatMap((t) => t.notes),
+      notes,
+    );
 
   const refreshSummary = () => {
-    const count = melody().length;
+    const notes = melody();
+    const count = notes.length;
     summary.textContent =
       count === 0 ? 'Coche au moins une piste avec des notes.' : `${count} notes à jouer, une à la fois (la plus aiguë de chaque accord).`;
     startButton.disabled = count === 0;
+    const extra = count === 0 ? 0 : accompaniment(notes).length;
+    accompanimentSummary.textContent =
+      extra > 0
+        ? `L'appli joue le reste du morceau (${extra} notes) et s'arrête avec toi quand elle attend une note.`
+        : "Ce morceau n'a pas d'accompagnement : toutes ses notes sont dans ta mélodie.";
   };
 
   const trackRows = midi.tracks.map((track, index) => {
@@ -86,9 +100,12 @@ export function setupScreen(app: App, song: SongSource): Screen {
     if (notes.length === 0) return;
     const selectedTracks = [...selected].sort((a, b) => a - b);
     if (song.stored) void rememberSelection(song.id, selectedTracks);
-    // Lancé directement dans le clic : nécessaire pour que le micro démarre sur iPhone/iPad.
-    app.play({ ...song, selectedTracks }, notes);
+    // Lancé directement dans le clic : nécessaire pour que le micro et le son démarrent sur téléphone.
+    app.play({ ...song, selectedTracks }, notes, accompaniment(notes));
   });
+
+  const accompanimentToggle = el('input', { type: 'checkbox', checked: app.settings.accompaniment });
+  accompanimentToggle.addEventListener('change', () => app.updateSettings({ accompaniment: accompanimentToggle.checked }));
 
   refreshSummary();
 
@@ -115,6 +132,23 @@ export function setupScreen(app: App, song: SongSource): Screen {
       el('h2', {}, 'Vitesse'),
       el('label', { class: 'slider' }, speedInput, speedValue),
       el('p', { class: 'muted' }, 'Pas de panique : le morceau attend toujours que tu joues la bonne note.'),
+    ),
+    el(
+      'section',
+      {},
+      el('h2', {}, 'Musique'),
+      el(
+        'label',
+        { class: 'field toggle' },
+        accompanimentToggle,
+        el(
+          'span',
+          {},
+          "Jouer l'accompagnement",
+          el('small', { class: 'muted' }, 'Mets des écouteurs : sinon le micro entend aussi la musique et peut se tromper.'),
+        ),
+      ),
+      accompanimentSummary,
     ),
     startButton,
   );

@@ -16,6 +16,8 @@ Pas de stress, donc : si tu te trompes ou si tu prends ton temps, le défilement
   - au bout d'un moment, un rappel « Joue Sol » apparaît ;
   - une fausse note fait clignoter la touche en rouge ;
   - si tu joues la bonne note beaucoup trop tôt, un message te demande d'attendre qu'elle touche le clavier.
+- **Musique d'accompagnement** : l'appli joue tout ce que tu ne joues pas (main gauche, accords, autres instruments).
+  Elle s'arrête exactement en même temps que la partition quand celle-ci t'attend, et repart avec ta note.
 - **Couleur par note** (Do rouge, Ré orange, Mi jaune…), reprise sur les noms du clavier.
 - **Vitesse réglable** de 25 % à 150 %, même pendant le morceau.
 - **Bilan en fin de morceau** : notes justes du premier coup, notes jouées en rythme, fausses notes, durée.
@@ -42,11 +44,37 @@ Pendant le morceau, **Espace** ou **Échap** met en pause.
 - Le mode **paysage** affiche des touches plus larges.
 - **L'écran reste allumé** pendant le morceau et le test du micro, même si tu ne le touches pas.
   Sur un iPhone trop ancien (avant iOS 16.4), désactive plutôt le verrouillage automatique pendant que tu joues.
+- Mets des **écouteurs** si l'accompagnement est activé : sinon le micro entend aussi la musique.
 - Joue **la mélodie seule**, une note à la fois. Si tu joues aussi la main gauche, le micro risque de s'y perdre.
   La pédale de sustain ne gêne pas.
 - Pour avoir l'appli en plein écran comme une vraie application, ajoute-la à l'écran d'accueil :
   - sur iPhone : Safari → Partager → « Sur l'écran d'accueil » ;
   - sur Android : Chrome → ⋮ → « Ajouter à l'écran d'accueil ».
+
+### Musique d'accompagnement
+
+L'appli joue elle-même le fichier MIDI, avec un petit synthétiseur au son de piano :
+
+- elle joue toutes les notes **sauf la mélodie**, que tu joues au piano ;
+- un accord qui tombe en même temps que ta note attend que tu l'aies jouée, comme un accompagnateur qui t'écoute ;
+- quand la partition t'attend, la musique se met **en pause au même instant** ;
+- une introduction avant la première note est jouée normalement.
+
+Les réglages associés :
+
+- 🎵 dans la barre du haut coupe ou remet la musique ;
+- le volume se règle dans les réglages ;
+- la batterie n'est pas jouée.
+
+Avec des **écouteurs Bluetooth** :
+
+- Si la musique paraît en retard, augmente « Retard du son » dans les réglages (de 100 à 250 ms, selon les écouteurs).
+- Si le navigateur utilise le micro des écouteurs au lieu de celui du téléphone, choisis le bon micro dans « Tester le micro ».
+
+Spotify n'est pas utilisable ici :
+
+- un enregistrement n'a ni le même tempo ni la même introduction que le fichier MIDI, et il faudrait un compte Premium ;
+- chaque pause passerait par Internet, avec du retard.
 
 ### Bon à savoir
 
@@ -86,7 +114,7 @@ Ensuite, chaque mise à jour de `main` la republie automatiquement.
 | --- | --- |
 | `src/midi/` | Lecture des fichiers MIDI (tempo, pistes, canaux) et petit générateur utilisé pour les démos et les tests |
 | `src/song/` | Extraction de la mélodie (une note à la fois) et morceaux de démonstration |
-| `src/audio/` | Micro, détection de hauteur (algorithme YIN) et reconnaissance des frappes (`NoteTracker`) |
+| `src/audio/` | Micro, détection de hauteur (algorithme YIN), reconnaissance des frappes (`NoteTracker`), synthétiseur et accompagnement synchronisé |
 | `src/game/` | Moteur du mode attente (`GameEngine`) et dessin des notes et du clavier (`Renderer`) |
 | `src/ui/` | Écrans : accueil, choix des pistes, jeu, test du micro, réglages |
 | `src/input/` | Clavier MIDI branché (Web MIDI) |

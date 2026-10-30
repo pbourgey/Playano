@@ -43,3 +43,19 @@ export function extractMelody(notes: readonly MidiNote[]): SongNote[] {
   }
   return melody;
 }
+
+/**
+ * Accompagnement joué par l'appli : toutes les notes, sauf celles de la mélodie
+ * que l'élève joue lui-même (y compris quand un autre instrument la double).
+ */
+export function extractAccompaniment(notes: readonly MidiNote[], melody: readonly SongNote[]): MidiNote[] {
+  const melodyTimes = new Map<number, number[]>();
+  for (const note of melody) {
+    const times = melodyTimes.get(note.midi);
+    if (times) times.push(note.time);
+    else melodyTimes.set(note.midi, [note.time]);
+  }
+  const isMelody = (note: MidiNote) =>
+    melodyTimes.get(note.midi)?.some((time) => Math.abs(time - note.time) <= CHORD_TOLERANCE) ?? false;
+  return notes.filter((note) => !isMelody(note)).sort((a, b) => a.time - b.time || a.midi - b.midi);
+}

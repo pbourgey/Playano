@@ -73,6 +73,20 @@ describe('GameEngine', () => {
     expect(engine.time).toBeCloseTo(-0.5);
   });
 
+  it('laisse finir l’accompagnement après la dernière note à jouer', () => {
+    const engine = new GameEngine(song, { speed: 1, octaveTolerant: false, leadIn: 0, songEnd: 6 });
+    engine.play(60);
+    advance(engine, 0.5);
+    engine.play(62);
+    advance(engine, 0.5);
+    engine.play(64);
+    advance(engine, 4);
+    expect(engine.finished).toBe(false);
+    expect(engine.waiting).toBe(false);
+    advance(engine, 3.5);
+    expect(engine.finished).toBe(true);
+  });
+
   it('se termine après la dernière note et calcule les statistiques', () => {
     const engine = new GameEngine(song, { speed: 1, octaveTolerant: false, leadIn: 0 });
     expect(engine.play(60)).toBe('correct');

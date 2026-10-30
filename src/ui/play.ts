@@ -1,7 +1,9 @@
 import type { App, SongSource } from '../app';
+import { AccompanimentPlayer } from '../audio/accompaniment';
 import { MicrophoneUnavailableError } from '../audio/microphone';
 import { GameEngine, type GameStats } from '../game/engine';
 import { Renderer, keyboardRange } from '../game/renderer';
+import type { MidiNote } from '../midi/parser';
 import { noteName } from '../notes';
 import { micGate } from '../settings';
 import type { SongNote } from '../song/melody';
@@ -15,7 +17,7 @@ const HINT_AFTER = 1.5;
 /** Durée d'affichage du message « trop tôt » (ms). */
 const EARLY_MESSAGE_MS = 1500;
 
-export function playScreen(app: App, song: SongSource, notes: SongNote[]): Screen {
+export function playScreen(app: App, song: SongSource, notes: SongNote[], accompaniment: MidiNote[]): Screen {
   const canvas = el('canvas', { class: 'stage', 'aria-label': 'Notes qui tombent et clavier de piano' });
   const renderer = new Renderer(canvas);
   // Le téléphone est posé sur le piano : l'écran ne doit pas se mettre en veille.
@@ -24,6 +26,11 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
   const range = keyboardRange(notes.map((n) => n.midi));
   renderer.setRange(range.low, range.high);
 
+  // Créé ici, pendant le clic sur « Commencer » : sinon le navigateur bloquerait le son.
+  const musicVolume = () => (app.settings.accompaniment ? app.settings.accompanimentVolume : 0);
+  const music = accompaniment.length > 0 ? new AccompanimentPlayer(accompaniment, musicVolume()) : null;
+  if (music) music.extraDelay = app.settings.audioDelayMs / 1000;
+
   let engine = newEngine();
   let paused = false;
   let ended = false;
@@ -31,7 +38,11 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
   let earlyAt = -Infinity;
 
   function newEngine() {
-    return new GameEngine(notes, { speed: app.settings.speed, octaveTolerant: app.settings.octaveTolerant });
+    return new GameEngine(notes, {
+      speed: app.settings.speed,
+      octaveTolerant: app.settings.octaveTolerant,
+      songEnd: music?.end,
+    });
   }
 
   // --- Barre du haut ---
@@ -47,6 +58,20 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
     speedText.textContent = `${Math.round(speed * 100)} %`;
   };
   speedText.textContent = `${Math.round(engine.speed * 100)} %`;
+
+  const musicButton = el('button', { class: 'icon-button', type: 'button' });
+  const refreshMusicButton = () => {
+    const on = app.settings.accompaniment;
+    musicButton.textContent = on ? '🎵' : '🔇';
+    musicButton.title = on ? "Couper l'accompagnement" : "Remettre l'accompagnement";
+    musicButton.setAttribute('aria-label', musicButton.title);
+  };
+  musicButton.addEventListener('click', () => {
+    app.updateSettings({ accompaniment: !app.settings.accompaniment });
+    music?.setVolume(musicVolume());
+    refreshMusicButton();
+  });
+  refreshMusicButton();
 
   const topBar = el(
     'header',
@@ -66,6 +91,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
       speedText,
       el('button', { class: 'icon-button small', type: 'button', 'aria-label': 'Accélérer', onclick: () => changeSpeed(0.05) }, '+'),
     ),
+    music && musicButton,
     pauseButton,
   );
 
@@ -110,7 +136,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
   let micError: string | null = null;
   app.mic.tracker.gate = micGate(app.settings.micSensitivity);
   app.mic
-    .start()
+    .start(app.settings.micDeviceId)
     .catch((error) => {
       micError = error instanceof MicrophoneUnavailableError ? error.message : "Impossible d'utiliser le micro.";
     })
@@ -152,6 +178,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
 
   function restart() {
     engine = newEngine();
+    music?.restart(engine.time);
     ended = false;
     setPaused(false);
   }
@@ -210,6 +237,13 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
       engine.update(dt);
       if (engine.finished) showEnd(engine.stats());
     }
+    // La musique avance exactement quand la partition avance, et s'arrête avec elle.
+    music?.sync({
+      songTime: engine.time,
+      speed: engine.speed,
+      limit: engine.target?.time ?? Infinity,
+      running: !paused && !ended && !engine.waiting,
+    });
 
     const heard =
       manualHeard && now - manualHeard.at < MANUAL_HEARD_MS ? manualHeard.midi : app.mic.active ? app.mic.tracker.current : null;
@@ -252,6 +286,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
       app.midiKeyboard.onNote = null;
       app.midiKeyboard.onDevicesChange = null;
       app.mic.stop();
+      music?.dispose();
     },
   };
 }

@@ -11,6 +11,14 @@ export interface Settings {
   micSensitivity: number;
   /** Affiche le nom de chaque touche blanche sur le clavier. */
   showKeyLabels: boolean;
+  /** L'appli joue l'accompagnement (les notes que l'élève ne joue pas). */
+  accompaniment: boolean;
+  /** Volume de l'accompagnement, de 0 à 1. */
+  accompanimentVolume: number;
+  /** Retard ajouté au son (ms) : à augmenter si la musique arrive en retard dans des écouteurs Bluetooth. */
+  audioDelayMs: number;
+  /** Micro choisi dans « Tester le micro » (vide = micro par défaut). */
+  micDeviceId: string;
 }
 
 const KEY = 'playano.settings';
@@ -21,6 +29,10 @@ const DEFAULTS: Settings = {
   octaveTolerant: true,
   micSensitivity: 0.5,
   showKeyLabels: true,
+  accompaniment: true,
+  accompanimentVolume: 0.8,
+  audioDelayMs: 0,
+  micDeviceId: '',
 };
 
 export function loadSettings(): Settings {

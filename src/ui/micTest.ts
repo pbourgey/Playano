@@ -1,5 +1,5 @@
 import type { App } from '../app';
-import { MicrophoneUnavailableError } from '../audio/microphone';
+import { MicrophoneListener, MicrophoneUnavailableError } from '../audio/microphone';
 import { Renderer } from '../game/renderer';
 import { noteName, noteNameWithOctave } from '../notes';
 import { micGate } from '../settings';
@@ -44,15 +44,45 @@ export function micTestScreen(app: App): Screen {
     lastPlayed.textContent = `Dernières notes reconnues : ${played.join(', ')}`;
   };
 
-  app.mic
-    .start()
-    .then(() => {
-      status.textContent = 'Micro actif. Pose ton téléphone sur le pupitre du piano et joue quelques notes.';
-    })
-    .catch((error) => {
-      status.textContent = error instanceof MicrophoneUnavailableError ? error.message : "Impossible d'utiliser le micro.";
-      status.classList.add('error');
-    });
+  // Choix du micro : utile si le navigateur prend celui des écouteurs au lieu de celui du téléphone.
+  const micSelect = el('select');
+  const micField = el(
+    'label',
+    { class: 'field', hidden: true },
+    el('span', {}, 'Micro utilisé'),
+    micSelect,
+    el('small', { class: 'muted' }, 'Avec des écouteurs Bluetooth, choisis le micro du téléphone : il est posé tout près du piano.'),
+  );
+  micSelect.addEventListener('change', () => {
+    app.updateSettings({ micDeviceId: micSelect.value });
+    app.mic.stop();
+    startMic();
+  });
+
+  async function listMics() {
+    const inputs = await MicrophoneListener.inputs().catch(() => []);
+    micField.hidden = inputs.length < 2;
+    micSelect.replaceChildren(
+      el('option', { value: '' }, 'Micro par défaut'),
+      ...inputs.map((input, i) => el('option', { value: input.deviceId }, input.label || `Micro ${i + 1}`)),
+    );
+    micSelect.value = inputs.some((i) => i.deviceId === app.settings.micDeviceId) ? app.settings.micDeviceId : '';
+  }
+
+  function startMic() {
+    status.classList.remove('error');
+    app.mic
+      .start(app.settings.micDeviceId)
+      .then(() => {
+        status.textContent = 'Micro actif. Pose ton téléphone sur le pupitre du piano et joue quelques notes.';
+        return listMics();
+      })
+      .catch((error) => {
+        status.textContent = error instanceof MicrophoneUnavailableError ? error.message : "Impossible d'utiliser le micro.";
+        status.classList.add('error');
+      });
+  }
+  startMic();
 
   app.midiKeyboard.onNote = showPlayed;
   void app.midiKeyboard.start().then(() => {
@@ -67,6 +97,7 @@ export function micTestScreen(app: App): Screen {
     el('h1', {}, 'Tester le micro'),
     status,
     el('div', { class: 'mic-card' }, bigNote, detail, el('div', { class: 'meter large' }, meterFill, gateMark)),
+    micField,
     el(
       'label',
       { class: 'field' },

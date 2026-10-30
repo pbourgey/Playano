@@ -37,6 +37,19 @@ export function openSettingsDialog(app: App): void {
       range('Sensibilité du micro', 'À ajuster dans « Tester le micro ».', 0, 100, 1, Math.round(s.micSensitivity * 100), (v) => `${v} %`, (v) =>
         app.updateSettings({ micSensitivity: v / 100 }),
       ),
+      range('Volume de la musique', "L'accompagnement joué pendant que tu joues la mélodie.", 0, 100, 5, Math.round(s.accompanimentVolume * 100), (v) => `${v} %`, (v) =>
+        app.updateSettings({ accompanimentVolume: v / 100 }),
+      ),
+      range(
+        'Retard du son',
+        'Avec des écouteurs Bluetooth, le son arrive un peu en retard. Si la musique semble décalée, augmente ce réglage.',
+        0,
+        400,
+        10,
+        s.audioDelayMs,
+        (v) => `${v} ms`,
+        (v) => app.updateSettings({ audioDelayMs: v }),
+      ),
       toggle(
         'Accepter la note dans une autre octave',
         'Le micro confond parfois un Do grave et un Do aigu. Désactive pour être strict.',

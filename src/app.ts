@@ -1,6 +1,7 @@
 import type { MicrophoneListener } from './audio/microphone';
 import type { MidiKeyboardInput } from './input/midiInput';
 import type { Settings } from './settings';
+import type { MidiNote } from './midi/parser';
 import type { SongNote } from './song/melody';
 
 /** Un morceau prêt à être ouvert : démo intégrée ou fichier importé. */
@@ -21,7 +22,8 @@ export interface App {
   readonly midiKeyboard: MidiKeyboardInput;
   goHome(): void;
   openSong(song: SongSource): void;
-  play(song: SongSource, notes: SongNote[]): void;
+  /** `notes` : la mélodie à jouer ; `accompaniment` : ce que l'appli joue en même temps. */
+  play(song: SongSource, notes: SongNote[], accompaniment: MidiNote[]): void;
   openMicTest(): void;
   openSettings(): void;
 }
