@@ -1,5 +1,7 @@
 import type { App } from '../app';
+import { micDisplayName } from '../audio/micChoice';
 import { MicrophoneListener, MicrophoneUnavailableError } from '../audio/microphone';
+import { PianoSynth } from '../audio/synth';
 import { Renderer } from '../game/renderer';
 import { noteName, noteNameWithOctave } from '../notes';
 import { micGate } from '../settings';
@@ -51,7 +53,11 @@ export function micTestScreen(app: App): Screen {
     { class: 'field', hidden: true },
     el('span', {}, 'Micro utilisé'),
     micSelect,
-    el('small', { class: 'muted' }, 'Avec des écouteurs Bluetooth, choisis le micro du téléphone : il est posé tout près du piano.'),
+    el(
+      'small',
+      { class: 'muted' },
+      "En automatique, l'appli prend le micro du téléphone plutôt que celui des écouteurs : il est posé tout près du piano.",
+    ),
   );
   micSelect.addEventListener('change', () => {
     app.updateSettings({ micDeviceId: micSelect.value });
@@ -63,18 +69,41 @@ export function micTestScreen(app: App): Screen {
     const inputs = await MicrophoneListener.inputs().catch(() => []);
     micField.hidden = inputs.length < 2;
     micSelect.replaceChildren(
-      el('option', { value: '' }, 'Micro par défaut'),
-      ...inputs.map((input, i) => el('option', { value: input.deviceId }, input.label || `Micro ${i + 1}`)),
+      el('option', { value: '' }, 'Automatique (micro du téléphone)'),
+      ...inputs.map((input, i) => el('option', { value: input.deviceId }, input.label ? micDisplayName(input.label) : `Micro ${i + 1}`)),
     );
     micSelect.value = inputs.some((i) => i.deviceId === app.settings.micDeviceId) ? app.settings.micDeviceId : '';
   }
+
+  // Quelques notes jouées comme le ferait l'accompagnement, micro actif : on entend par où sort la musique.
+  let soundContext: AudioContext | null = null;
+  const soundButton = el('button', { type: 'button' }, '🔊 Tester le son');
+  soundButton.addEventListener('click', () => {
+    soundContext ??= new AudioContext();
+    void soundContext.resume();
+    const synth = new PianoSynth(soundContext);
+    synth.output.connect(soundContext.destination);
+    const start = soundContext.currentTime + 0.05;
+    [60, 64, 67, 72].forEach((midi, i) => synth.play(midi, start + i * 0.3, 0.5, 100));
+  });
+  const soundField = el(
+    'div',
+    { class: 'field' },
+    el('span', {}, 'Son de la musique'),
+    soundButton,
+    el(
+      'small',
+      { class: 'muted' },
+      "Sur Android, quand le micro du téléphone est utilisé, Chrome peut envoyer le son sur le haut-parleur plutôt que dans les écouteurs Bluetooth. Ce n'est pas grave : garde un volume modéré, l'appli ignore les notes de sa propre musique.",
+    ),
+  );
 
   function startMic() {
     status.classList.remove('error');
     app.mic
       .start(app.settings.micDeviceId)
       .then(() => {
-        status.textContent = 'Micro actif. Pose ton téléphone sur le pupitre du piano et joue quelques notes.';
+        status.textContent = `${app.mic.deviceName} actif. Pose ton téléphone sur le pupitre du piano et joue quelques notes.`;
         return listMics();
       })
       .catch((error) => {
@@ -106,6 +135,7 @@ export function micTestScreen(app: App): Screen {
       el('small', { class: 'muted' }, 'Si des notes sont reconnues alors que tu ne joues pas, baisse-la. Si tes notes ne sont pas entendues, monte-la.'),
     ),
     lastPlayed,
+    soundField,
     canvas,
     !ScreenWakeLock.supported &&
       el(
@@ -148,6 +178,7 @@ export function micTestScreen(app: App): Screen {
       wakeLock.release();
       app.midiKeyboard.onNote = null;
       app.mic.stop();
+      void soundContext?.close();
     },
   };
 }

@@ -1,3 +1,4 @@
+import { choosePhoneMic, micDisplayName } from './micChoice';
 import { NoteTracker } from './noteTracker';
 import { PitchDetector, rms } from './pitch';
 
@@ -29,8 +30,13 @@ export class MicrophoneListener {
     return this.analyser !== null;
   }
 
-  /** `deviceId` : micro choisi par l'utilisateur (sinon celui par défaut). */
-  async start(deviceId = ''): Promise<void> {
+  /** Nom du micro utilisé. */
+  get deviceName(): string {
+    return micDisplayName(this.stream?.getAudioTracks()[0]?.label ?? '');
+  }
+
+  /** `preferredId` : micro choisi par l'utilisateur (vide = automatique, micro du téléphone de préférence). */
+  async start(preferredId = ''): Promise<void> {
     if (this.active) return;
     const generation = ++this.generation;
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -44,15 +50,14 @@ export class MicrophoneListener {
     void context.resume();
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        // Ces traitements, pensés pour la voix, déforment le son d'un instrument.
-        audio: {
-          deviceId: deviceId ? { ideal: deviceId } : undefined,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      stream = await openMic(choosePhoneMic(await MicrophoneListener.inputs(), preferredId));
+      // À la toute première autorisation, les noms des micros n'étaient pas encore connus :
+      // on vérifie maintenant qu'on n'a pas pris celui des écouteurs.
+      const chosen = choosePhoneMic(await MicrophoneListener.inputs(), preferredId);
+      if (chosen && chosen !== stream.getAudioTracks()[0]?.getSettings().deviceId) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = await openMic(chosen);
+      }
     } catch (error) {
       void context.close();
       const denied = error instanceof DOMException && error.name === 'NotAllowedError';
@@ -85,8 +90,10 @@ export class MicrophoneListener {
 
   /** Micros disponibles (leurs noms ne sont connus qu'une fois le micro autorisé). */
   static async inputs(): Promise<MediaDeviceInfo[]> {
-    const devices = (await navigator.mediaDevices?.enumerateDevices?.()) ?? [];
-    return devices.filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default');
+    const devices = (await navigator.mediaDevices?.enumerateDevices?.().catch(() => [])) ?? [];
+    return devices.filter(
+      (d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications',
+    );
   }
 
   /** Relance l'analyse si le navigateur l'a suspendue (onglet masqué, appel…). À appeler lors d'un clic. */
@@ -112,5 +119,18 @@ export class MicrophoneListener {
     this.context = null;
     this.analyser = null;
     this.detector = null;
+  }
+}
+
+/** Ouvre un micro précis, ou celui par défaut s'il n'est plus disponible. */
+async function openMic(deviceId: string | undefined): Promise<MediaStream> {
+  // Ces traitements, pensés pour la voix, déforment le son d'un instrument.
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  if (!deviceId) return navigator.mediaDevices.getUserMedia({ audio });
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: { ...audio, deviceId: { exact: deviceId } } });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError') throw error;
+    return navigator.mediaDevices.getUserMedia({ audio });
   }
 }
