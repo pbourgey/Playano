@@ -4,6 +4,7 @@ import { Renderer } from '../game/renderer';
 import { noteName, noteNameWithOctave } from '../notes';
 import { micGate } from '../settings';
 import { el, type Screen } from './dom';
+import { ScreenWakeLock } from './wakeLock';
 
 /** Niveau (RMS) correspondant à une jauge pleine. */
 const METER_MAX = 0.2;
@@ -22,6 +23,8 @@ export function micTestScreen(app: App): Screen {
   const lastPlayed = el('p', { class: 'muted' });
   const canvas = el('canvas', { class: 'mini-keyboard', 'aria-hidden': 'true' });
   const renderer = new Renderer(canvas, true);
+  const wakeLock = new ScreenWakeLock();
+  wakeLock.acquire();
   renderer.setRange(36, 95);
 
   const sensitivityInput = el('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(app.settings.micSensitivity * 100) });
@@ -44,7 +47,7 @@ export function micTestScreen(app: App): Screen {
   app.mic
     .start()
     .then(() => {
-      status.textContent = 'Micro actif. Pose ton appareil près du piano.';
+      status.textContent = 'Micro actif. Pose ton téléphone sur le pupitre du piano et joue quelques notes.';
     })
     .catch((error) => {
       status.textContent = error instanceof MicrophoneUnavailableError ? error.message : "Impossible d'utiliser le micro.";
@@ -73,6 +76,12 @@ export function micTestScreen(app: App): Screen {
     ),
     lastPlayed,
     canvas,
+    !ScreenWakeLock.supported &&
+      el(
+        'p',
+        { class: 'muted' },
+        "Ton navigateur ne peut pas garder l'écran allumé : désactive la mise en veille automatique du téléphone le temps de jouer.",
+      ),
   );
 
   const resizeObserver = new ResizeObserver(() => renderer.resize());
@@ -105,6 +114,7 @@ export function micTestScreen(app: App): Screen {
     dispose() {
       cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
+      wakeLock.release();
       app.midiKeyboard.onNote = null;
       app.mic.stop();
     },

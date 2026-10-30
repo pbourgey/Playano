@@ -6,6 +6,7 @@ import { noteName } from '../notes';
 import { micGate } from '../settings';
 import type { SongNote } from '../song/melody';
 import { el, type Screen } from './dom';
+import { ScreenWakeLock } from './wakeLock';
 
 /** Durée d'affichage d'une note touchée à l'écran ou reçue du clavier MIDI (ms). */
 const MANUAL_HEARD_MS = 300;
@@ -17,6 +18,9 @@ const EARLY_MESSAGE_MS = 1500;
 export function playScreen(app: App, song: SongSource, notes: SongNote[]): Screen {
   const canvas = el('canvas', { class: 'stage', 'aria-label': 'Notes qui tombent et clavier de piano' });
   const renderer = new Renderer(canvas);
+  // Le téléphone est posé sur le piano : l'écran ne doit pas se mettre en veille.
+  const wakeLock = new ScreenWakeLock();
+  wakeLock.acquire();
   const range = keyboardRange(notes.map((n) => n.midi));
   renderer.setRange(range.low, range.high);
 
@@ -242,6 +246,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[]): Scree
     dispose() {
       cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
+      wakeLock.release();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('keydown', onKey);
       app.midiKeyboard.onNote = null;

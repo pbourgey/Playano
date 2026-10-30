@@ -35,6 +35,19 @@ Pas de stress, donc : si tu te trompes ou si tu prends ton temps, le défilement
 
 Pendant le morceau, **Espace** ou **Échap** met en pause.
 
+### Jouer avec le téléphone posé sur le piano
+
+- Pose le téléphone sur le pupitre, **micro vers les cordes**, c'est-à-dire en général le bas du téléphone.
+  Sur un piano droit, le pupitre est juste au-dessus des cordes : c'est idéal.
+- Le mode **paysage** affiche des touches plus larges.
+- **L'écran reste allumé** pendant le morceau et le test du micro, même si tu ne le touches pas.
+  Sur un iPhone trop ancien (avant iOS 16.4), désactive plutôt le verrouillage automatique pendant que tu joues.
+- Joue **la mélodie seule**, une note à la fois. Si tu joues aussi la main gauche, le micro risque de s'y perdre.
+  La pédale de sustain ne gêne pas.
+- Pour avoir l'appli en plein écran comme une vraie application, ajoute-la à l'écran d'accueil :
+  - sur iPhone : Safari → Partager → « Sur l'écran d'accueil » ;
+  - sur Android : Chrome → ⋮ → « Ajouter à l'écran d'accueil ».
+
 ### Bon à savoir
 
 - Le micro ne fonctionne que sur une page **https** (ou en local sur l'ordinateur). C'est le cas sur GitHub Pages.
@@ -53,14 +66,19 @@ npm test           # tests automatiques
 npm run build      # version de production dans dist/
 ```
 
-## Mettre l'appli en ligne (GitHub Pages)
+## Mettre l'appli en ligne (GitHub Pages, gratuit)
 
 Le workflow `.github/workflows/ci.yml` lance les tests à chaque push.
 Sur la branche `main`, il publie aussi l'appli sur GitHub Pages.
-Il faut l'activer une seule fois : **Settings → Pages → Build and deployment → Source : GitHub Actions**.
 
-L'appli est ensuite disponible sur `https://<ton-compte>.github.io/Playano/`.
-Depuis le téléphone ou la tablette, le menu du navigateur permet de l'**ajouter à l'écran d'accueil**.
+Avec un compte GitHub gratuit, GitHub Pages ne fonctionne qu'avec un **dépôt public**. La mise en route se fait une seule fois :
+
+1. **Settings → General → Danger Zone → Change repository visibility → Make public**.
+   Le workflow démarre aussitôt et attend l'étape 2.
+2. **Settings → Pages → Build and deployment → Source : GitHub Actions**.
+
+Une minute plus tard, l'appli est en ligne sur **https://pbourgey.github.io/Playano/**.
+Ensuite, chaque mise à jour de `main` la republie automatiquement.
 
 ## Organisation du code
 
