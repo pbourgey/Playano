@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AccompanimentScheduler } from '../src/audio/accompaniment';
+import { AccompanimentScheduler, SoundingNotes } from '../src/audio/accompaniment';
 
 const note = (midi: number, time: number, duration = 0.5) => ({ midi, time, duration, velocity: 70 });
 const notes = [note(48, 0), note(52, 0.5), note(55, 1), note(48, 1.5, 2)];
@@ -36,5 +36,23 @@ describe('AccompanimentScheduler', () => {
 
   it('connaît la fin du dernier son', () => {
     expect(new AccompanimentScheduler(notes).lastEnd).toBe(3.5);
+  });
+});
+
+describe('SoundingNotes', () => {
+  it('reconnaît une note en train de sonner, et seulement pendant qu’elle sonne', () => {
+    const sounding = new SoundingNotes();
+    sounding.add(48, 1, 2);
+    expect(sounding.has(48, 0.5)).toBe(false);
+    expect(sounding.has(48, 1.5)).toBe(true);
+    expect(sounding.has(50, 1.5)).toBe(false);
+    expect(sounding.has(48, 2.5)).toBe(false);
+  });
+
+  it('oublie tout après « Recommencer »', () => {
+    const sounding = new SoundingNotes();
+    sounding.add(60, 0, 5);
+    sounding.clear();
+    expect(sounding.has(60, 1)).toBe(false);
   });
 });

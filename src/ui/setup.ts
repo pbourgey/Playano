@@ -145,7 +145,11 @@ export function setupScreen(app: App, song: SongSource): Screen {
           'span',
           {},
           "Jouer l'accompagnement",
-          el('small', { class: 'muted' }, 'Mets des écouteurs : sinon le micro entend aussi la musique et peut se tromper.'),
+          el(
+            'small',
+            { class: 'muted' },
+            "Écouteurs ou haut-parleur : l'appli ignore les notes de sa propre musique. Avec le haut-parleur, garde un volume modéré.",
+          ),
         ),
       ),
       accompanimentSummary,

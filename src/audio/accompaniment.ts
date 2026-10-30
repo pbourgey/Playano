@@ -7,6 +7,29 @@ const LATE_TOLERANCE = 0.05;
 const LOOKAHEAD = 0.15;
 /** Durée du fondu (s) quand la musique s'arrête pour attendre l'élève. */
 const FADE = 0.015;
+/** Une note jouée par l'appli résonne encore un peu après son relâchement (s). */
+const RING = 0.4;
+
+/**
+ * Notes que l'appli fait sonner en ce moment. Si la musique sort du haut-parleur,
+ * le micro les entend aussi : il ne faut pas les prendre pour des notes jouées au piano.
+ */
+export class SoundingNotes {
+  private notes: { midi: number; start: number; end: number }[] = [];
+
+  add(midi: number, start: number, end: number): void {
+    this.notes.push({ midi, start, end });
+  }
+
+  has(midi: number, now: number): boolean {
+    this.notes = this.notes.filter((n) => n.end >= now);
+    return this.notes.some((n) => n.midi === midi && n.start <= now);
+  }
+
+  clear(): void {
+    this.notes = [];
+  }
+}
 
 /**
  * Choisit les notes d'accompagnement à programmer. Il ne dépasse jamais la
@@ -60,8 +83,10 @@ export class AccompanimentPlayer {
   private readonly master: GainNode;
   private synth: PianoSynth;
   private readonly scheduler: AccompanimentScheduler;
+  private readonly sounding = new SoundingNotes();
   private running = true;
   private suspendTimer = 0;
+  private lastResumeAttempt = 0;
   private volume: number;
   /** Retard supplémentaire (s) choisi par l'utilisateur, pour les écouteurs Bluetooth. */
   extraDelay = 0;
@@ -97,6 +122,11 @@ export class AccompanimentPlayer {
     if (this.running) this.master.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.02);
   }
 
+  /** Vrai si l'appli fait sonner cette note en ce moment (le micro peut l'entendre). */
+  isSounding(midi: number): boolean {
+    return this.volume > 0 && this.sounding.has(midi, this.ctx.currentTime);
+  }
+
   /** À appeler à chaque image, après la mise à jour de la partition. */
   sync(state: SyncState): void {
     if (state.running !== this.running) {
@@ -105,6 +135,11 @@ export class AccompanimentPlayer {
       else this.pauseAudio();
     }
     if (!state.running) return;
+    // Le téléphone peut couper le son de lui-même (changement d'écouteurs, appel…) : on le relance.
+    if (this.ctx.state !== 'running' && performance.now() - this.lastResumeAttempt > 1000) {
+      this.lastResumeAttempt = performance.now();
+      void this.ctx.resume();
+    }
 
     const delay = this.delay;
     const horizon = Math.min(state.songTime + (LOOKAHEAD + delay) * state.speed, state.limit);
@@ -112,7 +147,9 @@ export class AccompanimentPlayer {
       if (this.volume <= 0) continue;
       // On programme en avance du retard de sortie pour entendre la note au bon moment.
       const when = this.ctx.currentTime + Math.max(0, (note.time - state.songTime) / state.speed - delay);
-      this.synth.play(note.midi, when, note.duration / state.speed, note.velocity);
+      const duration = note.duration / state.speed;
+      this.synth.play(note.midi, when, duration, note.velocity);
+      this.sounding.add(note.midi, when, when + duration + RING + delay);
     }
   }
 
@@ -120,7 +157,14 @@ export class AccompanimentPlayer {
   restart(songTime: number): void {
     this.synth.output.disconnect();
     this.synth = this.newSynth();
+    this.sounding.clear();
     this.scheduler.seek(songTime);
+  }
+
+  /** Relance le son pendant un geste de l'utilisateur, si le navigateur l'avait bloqué. */
+  unlock(): void {
+    // Sans risque même pendant une attente : le volume est alors à zéro.
+    void this.ctx.resume();
   }
 
   dispose(): void {

@@ -116,6 +116,8 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   // --- Entrées : micro, clavier MIDI, touches à l'écran ---
   function handleNote(midi: number, manual: boolean) {
     if (manual) manualHeard = { midi, at: performance.now() };
+    // Le micro entend aussi la musique de l'appli si elle sort du haut-parleur : on l'ignore.
+    else if (music?.isSounding(midi)) return;
     if (paused || ended) return;
     const result = engine.play(midi);
     if (result === 'correct') renderer.flash(midi, 'correct');
@@ -128,6 +130,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   void app.midiKeyboard.start().then(updateInputChip);
 
   canvas.addEventListener('pointerdown', (event) => {
+    music?.unlock();
     const rect = canvas.getBoundingClientRect();
     const midi = renderer.keyAt(event.clientX - rect.left, event.clientY - rect.top);
     if (midi !== null) handleNote(midi, true);
@@ -145,7 +148,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   function updateInputChip() {
     const devices = app.midiKeyboard.deviceNames;
     if (devices.length > 0) micLabel.textContent = `🎹 ${devices[0]}`;
-    else if (app.mic.active) micLabel.textContent = '🎤 Micro actif';
+    else if (app.mic.active) micLabel.textContent = `🎤 ${app.mic.deviceName}`;
     else micLabel.textContent = micError ? '🎤 Micro coupé' : '🎤 Micro…';
     micChip.classList.toggle('off', !app.mic.active && devices.length === 0 && micError !== null);
 
@@ -172,6 +175,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
     } else {
       overlay.hidden = true;
       app.mic.resume();
+      music?.unlock();
     }
   }
   pauseButton.addEventListener('click', () => setPaused(!paused));

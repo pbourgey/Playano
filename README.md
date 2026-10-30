@@ -44,7 +44,7 @@ Pendant le morceau, **Espace** ou **Échap** met en pause.
 - Le mode **paysage** affiche des touches plus larges.
 - **L'écran reste allumé** pendant le morceau et le test du micro, même si tu ne le touches pas.
   Sur un iPhone trop ancien (avant iOS 16.4), désactive plutôt le verrouillage automatique pendant que tu joues.
-- Mets des **écouteurs** si l'accompagnement est activé : sinon le micro entend aussi la musique.
+- Avec l'accompagnement, que la musique sorte des écouteurs ou du haut-parleur, l'appli ignore les notes de sa propre musique.
 - Joue **la mélodie seule**, une note à la fois. Si tu joues aussi la main gauche, le micro risque de s'y perdre.
   La pédale de sustain ne gêne pas.
 - Pour avoir l'appli en plein écran comme une vraie application, ajoute-la à l'écran d'accueil :
@@ -66,10 +66,14 @@ Les réglages associés :
 - le volume se règle dans les réglages ;
 - la batterie n'est pas jouée.
 
-Avec des **écouteurs Bluetooth** :
+Avec des **écouteurs Bluetooth** sur Android :
 
+- Dès qu'une page utilise le micro, Chrome passe en mode « appel ». Il prendrait alors le micro des écouteurs, en qualité téléphone et loin du piano.
+  L'appli impose donc automatiquement **le micro du téléphone**. Tu peux changer ce choix dans « Tester le micro ».
+- Conséquence possible : la musique sort du **haut-parleur du téléphone** au lieu des écouteurs.
+  « 🔊 Tester le son » montre par où elle sort.
+- Si la musique sort du haut-parleur, ce n'est pas grave : l'appli ignore les notes de sa propre musique. Garde simplement un volume modéré.
 - Si la musique paraît en retard, augmente « Retard du son » dans les réglages (de 100 à 250 ms, selon les écouteurs).
-- Si le navigateur utilise le micro des écouteurs au lieu de celui du téléphone, choisis le bon micro dans « Tester le micro ».
 
 Spotify n'est pas utilisable ici :
 
