@@ -2,7 +2,7 @@ import type { MicrophoneListener } from './audio/microphone';
 import type { MidiKeyboardInput } from './input/midiInput';
 import type { Settings } from './settings';
 import type { MidiNote } from './midi/parser';
-import type { SongNote } from './song/melody';
+import type { SongNote } from './song/playable';
 
 /** Un morceau prêt à être ouvert : démo intégrée ou fichier importé. */
 export interface SongSource {

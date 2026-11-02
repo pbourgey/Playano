@@ -104,31 +104,43 @@ export function homeScreen(app: App): Screen {
     'main',
     { class: 'screen home' },
     el(
-      'header',
-      { class: 'brand' },
-      el('h1', {}, 'Playano'),
-      el('p', { class: 'muted' }, 'Les notes tombent et attendent que tu les joues sur ton piano.'),
-    ),
-    dropZone,
-    status,
-    el('section', {}, el('h2', {}, 'Mes morceaux'), myList),
-    el(
-      'section',
-      {},
-      el('h2', {}, 'Pour essayer'),
+      'div',
+      { class: 'columns' },
       el(
-        'ul',
-        { class: 'song-list' },
-        ...DEMO_SONGS.map((demo) =>
-          songItem({ id: demo.id, name: demo.name, data: demo.data, stored: false }, 'Morceau de démonstration'),
+        'div',
+        { class: 'column' },
+        el(
+          'header',
+          { class: 'brand' },
+          el('h1', {}, 'Playano'),
+          el('p', { class: 'muted' }, 'Les notes tombent et attendent que tu les joues sur ton piano.'),
+        ),
+        dropZone,
+        status,
+        el(
+          'footer',
+          { class: 'home-actions' },
+          el('button', { type: 'button', onclick: () => app.openMicTest() }, '🎤 Tester le micro'),
+          el('button', { type: 'button', onclick: () => app.openSettings() }, '⚙ Réglages'),
         ),
       ),
-    ),
-    el(
-      'footer',
-      { class: 'home-actions' },
-      el('button', { type: 'button', onclick: () => app.openMicTest() }, '🎤 Tester le micro'),
-      el('button', { type: 'button', onclick: () => app.openSettings() }, '⚙ Réglages'),
+      el(
+        'div',
+        { class: 'column' },
+        el('section', {}, el('h2', {}, 'Mes morceaux'), myList),
+        el(
+          'section',
+          {},
+          el('h2', {}, 'Pour essayer'),
+          el(
+            'ul',
+            { class: 'song-list' },
+            ...DEMO_SONGS.map((demo) =>
+              songItem({ id: demo.id, name: demo.name, data: demo.data, stored: false }, 'Morceau de démonstration'),
+            ),
+          ),
+        ),
+      ),
     ),
   );
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { EARLY_WINDOW, GameEngine } from '../src/game/engine';
 
 const song = [
-  { midi: 60, time: 0, duration: 0.5 },
-  { midi: 62, time: 0.5, duration: 0.5 },
-  { midi: 64, time: 1, duration: 1 },
+  { midi: 60, time: 0, duration: 0.5, hand: 'right' as const },
+  { midi: 62, time: 0.5, duration: 0.5, hand: 'right' as const },
+  { midi: 64, time: 1, duration: 1, hand: 'right' as const },
 ];
 
 /** Fait avancer le moteur par petits pas, comme l'affichage à 60 images/s. */
@@ -24,7 +24,7 @@ describe('GameEngine', () => {
     advance(engine, 5);
     expect(engine.time).toBe(0);
     expect(engine.waiting).toBe(true);
-    expect(engine.target?.midi).toBe(60);
+    expect(engine.target?.notes[0].midi).toBe(60);
     expect(engine.target?.waited).toBeGreaterThan(3.9);
   });
 
@@ -37,14 +37,14 @@ describe('GameEngine', () => {
     expect(engine.time).toBeCloseTo(0.25, 1);
     advance(engine, 1);
     expect(engine.time).toBe(0.5);
-    expect(engine.target?.midi).toBe(62);
+    expect(engine.target?.notes[0].midi).toBe(62);
   });
 
   it('compte une fausse note sans avancer', () => {
     const engine = new GameEngine(song, { speed: 1, octaveTolerant: false, leadIn: 1 });
     advance(engine, 2);
     expect(engine.play(61)).toBe('wrong');
-    expect(engine.nextIndex).toBe(0);
+    expect(engine.nextStep).toBe(0);
     expect(engine.wrongCount).toBe(1);
     expect(engine.target?.mistakes).toBe(1);
   });
@@ -53,7 +53,7 @@ describe('GameEngine', () => {
     const engine = new GameEngine(song, { speed: 1, octaveTolerant: false, leadIn: 2 });
     expect(engine.play(60)).toBe('early');
     expect(engine.play(61)).toBe('ignored');
-    expect(engine.nextIndex).toBe(0);
+    expect(engine.nextStep).toBe(0);
     expect(engine.wrongCount).toBe(0);
     advance(engine, 2 - EARLY_WINDOW / 2);
     expect(engine.play(60)).toBe('correct');
@@ -106,5 +106,53 @@ describe('GameEngine', () => {
     expect(stats.accuracy).toBeCloseTo(2 / 3);
     // La 2e note a eu une faute, la 3e a fait attendre le défilement.
     expect(stats.perfect).toBe(1);
+  });
+});
+
+describe('GameEngine — deux mains et accords', () => {
+  const twoHands = [
+    { midi: 48, time: 0, duration: 1, hand: 'left' as const },
+    { midi: 64, time: 0.01, duration: 0.5, hand: 'right' as const },
+    { midi: 67, time: 0.02, duration: 0.5, hand: 'right' as const },
+    { midi: 65, time: 0.5, duration: 0.5, hand: 'right' as const },
+    { midi: 43, time: 1, duration: 1, hand: 'left' as const },
+  ];
+
+  it('regroupe les notes jouées ensemble en une étape qui touche le clavier en même temps', () => {
+    const engine = new GameEngine(twoHands, { speed: 1, octaveTolerant: false, leadIn: 0 });
+    expect(engine.steps.map((s) => s.notes.map((n) => n.midi))).toEqual([[48, 64, 67], [65], [43]]);
+    expect(engine.steps[0].notes.every((n) => n.time === 0)).toBe(true);
+    expect(engine.notes).toHaveLength(5);
+  });
+
+  it('valide tout l’accord dès qu’une de ses notes est entendue', () => {
+    const engine = new GameEngine(twoHands, { speed: 1, octaveTolerant: false, leadIn: 0 });
+    expect(engine.play(48)).toBe('correct');
+    expect(engine.steps[0].notes.every((n) => n.hit)).toBe(true);
+    expect(engine.target?.notes[0].midi).toBe(65);
+  });
+
+  it('accepte aussi la note de l’autre main', () => {
+    const engine = new GameEngine(twoHands, { speed: 1, octaveTolerant: false, leadIn: 0 });
+    expect(engine.play(67)).toBe('correct');
+  });
+
+  it('attend une note de la main gauche seule', () => {
+    const engine = new GameEngine(twoHands, { speed: 1, octaveTolerant: false, leadIn: 0 });
+    engine.play(64);
+    advance(engine, 0.5);
+    engine.play(65);
+    advance(engine, 2);
+    expect(engine.waiting).toBe(true);
+    expect(engine.time).toBe(1);
+    expect(engine.play(60)).toBe('wrong');
+    expect(engine.play(43)).toBe('correct');
+  });
+
+  it('compte la progression par étape', () => {
+    const engine = new GameEngine(twoHands, { speed: 1, octaveTolerant: false, leadIn: 0 });
+    engine.play(64);
+    expect(engine.nextStep).toBe(1);
+    expect(engine.stats().total).toBe(3);
   });
 });

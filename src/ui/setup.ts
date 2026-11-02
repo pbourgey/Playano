@@ -1,7 +1,7 @@
 import type { App, SongSource } from '../app';
 import { instrumentName, isDrumTrack, parseMidi, type MidiTrack } from '../midi/parser';
 import { noteNameWithOctave } from '../notes';
-import { extractAccompaniment, extractMelody } from '../song/melody';
+import { extractAccompaniment, playableNotes, type SongNote } from '../song/playable';
 import { getSong, saveSong } from '../storage/library';
 import { el, type Screen } from './dom';
 
@@ -31,29 +31,37 @@ export function setupScreen(app: App, song: SongSource): Screen {
   const selected = new Set(valid.length > 0 ? valid : defaultSelection(midi.tracks));
 
   const summary = el('p', { class: 'summary' });
-  const startButton = el('button', { class: 'primary big', type: 'button' }, 'Commencer');
-
+  const startButton = el('button', { class: 'primary big start', type: 'button' }, 'Commencer');
   const accompanimentSummary = el('p', { class: 'muted' });
+  const accompanimentToggle = el('input', { type: 'checkbox' });
+  accompanimentToggle.addEventListener('change', () => app.updateSettings({ accompaniment: accompanimentToggle.checked }));
 
-  const melody = () => extractMelody([...selected].flatMap((i) => midi.tracks[i].notes));
-  // La batterie n'est pas jouée : le petit synthétiseur ne sait faire que du piano.
-  const accompaniment = (notes = melody()) =>
+  /** Toutes les notes des pistes cochées : les deux mains, accords compris. */
+  const toPlay = () => playableNotes([...selected].sort((a, b) => a - b).map((i) => midi.tracks[i]));
+  // L'appli joue les pistes non cochées (sauf la batterie : le synthétiseur ne sait faire que du piano).
+  const accompaniment = (notes: SongNote[]) =>
     extractAccompaniment(
-      midi.tracks.filter((t) => !isDrumTrack(t)).flatMap((t) => t.notes),
+      midi.tracks.filter((t, i) => !selected.has(i) && !isDrumTrack(t)).flatMap((t) => t.notes),
       notes,
     );
 
   const refreshSummary = () => {
-    const notes = melody();
-    const count = notes.length;
+    const notes = toPlay();
+    const bothHands = new Set(notes.map((n) => n.hand)).size === 2;
     summary.textContent =
-      count === 0 ? 'Coche au moins une piste avec des notes.' : `${count} notes à jouer, une à la fois (la plus aiguë de chaque accord).`;
-    startButton.disabled = count === 0;
-    const extra = count === 0 ? 0 : accompaniment(notes).length;
+      notes.length === 0
+        ? 'Coche au moins une piste avec des notes.'
+        : `${notes.length} notes à jouer${bothHands ? ', aux deux mains' : ''}. Pour un accord, une des notes suffit pour avancer.`;
+    startButton.disabled = notes.length === 0;
+
+    const extra = notes.length === 0 ? 0 : accompaniment(notes).length;
+    // Rien à accompagner quand toutes les pistes sont jouées : l'option ne peut pas être cochée.
+    accompanimentToggle.disabled = extra === 0;
+    accompanimentToggle.checked = extra > 0 && app.settings.accompaniment;
     accompanimentSummary.textContent =
       extra > 0
-        ? `L'appli joue le reste du morceau (${extra} notes) et s'arrête avec toi quand elle attend une note.`
-        : "Ce morceau n'a pas d'accompagnement : toutes ses notes sont dans ta mélodie.";
+        ? `L'appli joue les pistes non cochées (${extra} notes) et s'arrête avec toi quand elle attend une note.`
+        : "Tu joues toutes les pistes : il n'y a rien à accompagner.";
   };
 
   const trackRows = midi.tracks.map((track, index) => {
@@ -96,16 +104,13 @@ export function setupScreen(app: App, song: SongSource): Screen {
   });
 
   startButton.addEventListener('click', () => {
-    const notes = melody();
+    const notes = toPlay();
     if (notes.length === 0) return;
     const selectedTracks = [...selected].sort((a, b) => a - b);
     if (song.stored) void rememberSelection(song.id, selectedTracks);
     // Lancé directement dans le clic : nécessaire pour que le micro et le son démarrent sur téléphone.
     app.play({ ...song, selectedTracks }, notes, accompaniment(notes));
   });
-
-  const accompanimentToggle = el('input', { type: 'checkbox', checked: app.settings.accompaniment });
-  accompanimentToggle.addEventListener('change', () => app.updateSettings({ accompaniment: accompanimentToggle.checked }));
 
   refreshSummary();
 
@@ -116,45 +121,57 @@ export function setupScreen(app: App, song: SongSource): Screen {
     'main',
     { class: 'screen setup' },
     el('button', { class: 'back', type: 'button', onclick: () => app.goHome() }, '← Morceaux'),
-    el('h1', {}, song.name),
-    el('p', { class: 'muted' }, `Durée : ${minutes} min ${seconds} s · ${midi.tracks.length} piste(s)`),
     el(
-      'section',
+      'header',
       {},
-      el('h2', {}, 'Quelles pistes veux-tu jouer ?'),
-      el('p', { class: 'muted' }, 'Souvent, la main droite porte la mélodie. Tu peux en cocher plusieurs.'),
-      el('ul', { class: 'track-list' }, ...trackRows),
-      summary,
+      el('h1', {}, song.name),
+      el('p', { class: 'muted' }, `Durée : ${minutes} min ${seconds} s · ${midi.tracks.length} piste(s)`),
     ),
     el(
-      'section',
-      {},
-      el('h2', {}, 'Vitesse'),
-      el('label', { class: 'slider' }, speedInput, speedValue),
-      el('p', { class: 'muted' }, 'Pas de panique : le morceau attend toujours que tu joues la bonne note.'),
-    ),
-    el(
-      'section',
-      {},
-      el('h2', {}, 'Musique'),
+      'div',
+      { class: 'columns' },
       el(
-        'label',
-        { class: 'field toggle' },
-        accompanimentToggle,
-        el(
-          'span',
-          {},
-          "Jouer l'accompagnement",
-          el(
-            'small',
-            { class: 'muted' },
-            "Écouteurs ou haut-parleur : l'appli ignore les notes de sa propre musique. Avec le haut-parleur, garde un volume modéré.",
-          ),
-        ),
+        'section',
+        {},
+        el('h2', {}, 'Quelles pistes veux-tu jouer ?'),
+        el('p', { class: 'muted' }, 'Coche la main droite, la main gauche, ou les deux.'),
+        el('ul', { class: 'track-list' }, ...trackRows),
+        summary,
       ),
-      accompanimentSummary,
+      el(
+        'div',
+        { class: 'column' },
+        el(
+          'section',
+          {},
+          el('h2', {}, 'Vitesse'),
+          el('label', { class: 'slider' }, speedInput, speedValue),
+          el('p', { class: 'muted' }, 'Pas de panique : le morceau attend toujours que tu joues la bonne note.'),
+        ),
+        el(
+          'section',
+          {},
+          el('h2', {}, 'Musique'),
+          el(
+            'label',
+            { class: 'field toggle' },
+            accompanimentToggle,
+            el(
+              'span',
+              {},
+              "Jouer l'accompagnement",
+              el(
+                'small',
+                { class: 'muted' },
+                "Écouteurs ou haut-parleur : l'appli ignore les notes de sa propre musique. Avec le haut-parleur, garde un volume modéré.",
+              ),
+            ),
+          ),
+          accompanimentSummary,
+        ),
+        startButton,
+      ),
     ),
-    startButton,
   );
   return { root };
 }

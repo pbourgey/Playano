@@ -1,11 +1,20 @@
 import { pitchClass } from '../notes';
-import type { SongNote } from '../song/melody';
+import { CHORD_TOLERANCE, type SongNote } from '../song/playable';
 
 export interface GameNote extends SongNote {
   hit: boolean;
-  /** Fausses notes jouées pendant qu'on attendait celle-ci. */
+  /** Index de l'étape (groupe de notes jouées ensemble) à laquelle appartient la note. */
+  step: number;
+}
+
+/** Notes qui tombent ensemble sur le clavier : une note seule, un accord, ou une note par main. */
+export interface Step {
+  time: number;
+  notes: GameNote[];
+  hit: boolean;
+  /** Fausses notes jouées pendant qu'on attendait cette étape. */
   mistakes: number;
-  /** Temps réel (s) pendant lequel le défilement a attendu cette note. */
+  /** Temps réel (s) pendant lequel le défilement a attendu cette étape. */
   waited: number;
 }
 
@@ -21,20 +30,21 @@ export interface GameOptions {
 }
 
 /**
- * - `correct` : la note attendue, validée ;
- * - `wrong` : une autre note alors que la note attendue est à jouer ;
- * - `early` : la note attendue, mais jouée trop tôt (elle n'est pas validée) ;
+ * - `correct` : une des notes attendues, l'étape est validée ;
+ * - `wrong` : une autre note alors que l'étape est à jouer ;
+ * - `early` : une note attendue, mais jouée trop tôt (elle n'est pas validée) ;
  * - `ignored` : rien à jouer pour l'instant.
  */
 export type PlayResult = 'correct' | 'wrong' | 'early' | 'ignored';
 
 export interface GameStats {
+  /** Nombre d'étapes du morceau. */
   total: number;
   hit: number;
   wrong: number;
-  /** Notes jouées à temps, sans faute et sans faire attendre le défilement. */
+  /** Étapes jouées à temps, sans faute et sans faire attendre le défilement. */
   perfect: number;
-  /** Part des notes jouées justes du premier coup (0-1). */
+  /** Part des étapes jouées justes du premier coup (0-1). */
   accuracy: number;
   /** Durée réelle de la partie (s). */
   elapsed: number;
@@ -42,48 +52,63 @@ export interface GameStats {
 
 /** Une note peut être jouée un peu en avance, jusqu'à ce délai (s, temps réel) avant d'atteindre le clavier. */
 export const EARLY_WINDOW = 0.4;
-/** Attente (s) en dessous de laquelle une note compte encore comme jouée « à temps ». */
+/** Attente (s) en dessous de laquelle une étape compte encore comme jouée « à temps ». */
 const ON_TIME_TOLERANCE = 0.3;
 /** Temps laissé après la dernière note avant d'afficher la fin. */
 const OUTRO = 1;
 
 /**
  * Logique du mode « attente » : le morceau défile en rythme, mais s'arrête sur
- * chaque note tant qu'elle n'a pas été jouée.
+ * chaque étape tant qu'elle n'a pas été jouée. Pour un accord ou des notes aux
+ * deux mains, une seule des notes entendue suffit : le micro du téléphone ne
+ * sait pas séparer toutes les notes d'un accord.
  */
 export class GameEngine {
   readonly notes: GameNote[];
+  readonly steps: Step[];
   /** Position dans le morceau (s). */
   time: number;
   speed: number;
   octaveTolerant: boolean;
-  /** Index de la prochaine note à jouer. */
-  nextIndex = 0;
+  /** Index de la prochaine étape à jouer. */
+  nextStep = 0;
   waiting = false;
   wrongCount = 0;
   elapsed = 0;
   private readonly endTime: number;
 
   constructor(notes: readonly SongNote[], options: GameOptions) {
-    this.notes = notes.map((n) => ({ ...n, hit: false, mistakes: 0, waited: 0 }));
+    this.notes = [];
+    this.steps = [];
+    for (const note of [...notes].sort((a, b) => a.time - b.time || a.midi - b.midi)) {
+      let step = this.steps[this.steps.length - 1];
+      if (!step || note.time - step.time > CHORD_TOLERANCE) {
+        step = { time: note.time, notes: [], hit: false, mistakes: 0, waited: 0 };
+        this.steps.push(step);
+      }
+      // Les notes d'une même étape touchent le clavier ensemble.
+      const gameNote: GameNote = { ...note, time: step.time, hit: false, step: this.steps.length - 1 };
+      step.notes.push(gameNote);
+      this.notes.push(gameNote);
+    }
+
     this.speed = options.speed;
     this.octaveTolerant = options.octaveTolerant;
-    const first = this.notes[0]?.time ?? 0;
+    const first = this.steps[0]?.time ?? 0;
     this.time = Math.min(0, first) - (options.leadIn ?? 3) * this.speed;
-    const last = this.notes[this.notes.length - 1];
-    const melodyEnd = last ? last.time + last.duration : 0;
-    this.endTime = Math.max(melodyEnd, options.songEnd ?? 0) + OUTRO;
+    const notesEnd = this.notes.reduce((end, n) => Math.max(end, n.time + n.duration), 0);
+    this.endTime = Math.max(notesEnd, options.songEnd ?? 0) + OUTRO;
   }
 
-  get target(): GameNote | undefined {
-    return this.notes[this.nextIndex];
+  get target(): Step | undefined {
+    return this.steps[this.nextStep];
   }
 
   get finished(): boolean {
-    return this.nextIndex >= this.notes.length && this.time >= this.endTime;
+    return this.nextStep >= this.steps.length && this.time >= this.endTime;
   }
 
-  /** La note attendue est-elle assez proche pour être jouée ? */
+  /** L'étape attendue est-elle assez proche pour être jouée ? */
   get targetPlayable(): boolean {
     const target = this.target;
     return !!target && (target.time - this.time) / this.speed <= EARLY_WINDOW;
@@ -111,7 +136,9 @@ export class GameEngine {
     const target = this.target;
     if (!target) return 'ignored';
 
-    const matches = midi === target.midi || (this.octaveTolerant && pitchClass(midi) === pitchClass(target.midi));
+    const matches = target.notes.some(
+      (n) => n.midi === midi || (this.octaveTolerant && pitchClass(n.midi) === pitchClass(midi)),
+    );
     if (!this.targetPlayable) return matches ? 'early' : 'ignored';
     if (!matches) {
       target.mistakes++;
@@ -119,21 +146,21 @@ export class GameEngine {
       return 'wrong';
     }
     target.hit = true;
-    this.nextIndex++;
+    for (const note of target.notes) note.hit = true;
+    this.nextStep++;
     this.waiting = false;
     return 'correct';
   }
 
   stats(): GameStats {
-    const hit = this.notes.filter((n) => n.hit).length;
-    const perfect = this.notes.filter((n) => n.hit && n.mistakes === 0 && n.waited <= ON_TIME_TOLERANCE).length;
-    const firstTry = this.notes.filter((n) => n.hit && n.mistakes === 0).length;
+    const hit = this.steps.filter((s) => s.hit);
+    const firstTry = hit.filter((s) => s.mistakes === 0);
     return {
-      total: this.notes.length,
-      hit,
+      total: this.steps.length,
+      hit: hit.length,
       wrong: this.wrongCount,
-      perfect,
-      accuracy: hit === 0 ? 0 : firstTry / hit,
+      perfect: firstTry.filter((s) => s.waited <= ON_TIME_TOLERANCE).length,
+      accuracy: hit.length === 0 ? 0 : firstTry.length / hit.length,
       elapsed: this.elapsed,
     };
   }
