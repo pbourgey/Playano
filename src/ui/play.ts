@@ -6,7 +6,7 @@ import { Renderer, keyboardRange } from '../game/renderer';
 import type { MidiNote } from '../midi/parser';
 import { noteName } from '../notes';
 import { micGate } from '../settings';
-import type { SongNote } from '../song/melody';
+import type { SongNote } from '../song/playable';
 import { el, type Screen } from './dom';
 import { ScreenWakeLock } from './wakeLock';
 
@@ -73,6 +73,17 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   });
   refreshMusicButton();
 
+  // --- Indicateurs : dans la barre du haut, pour ne jamais cacher les notes qui tombent ---
+  const micLevel = el('div', { class: 'meter-fill' });
+  const micIcon = el('span', {}, '🎤');
+  const micLabel = el('span', { class: 'device-name' }, 'Micro…');
+  const micChip = el('div', { class: 'chip' }, micIcon, micLabel, el('div', { class: 'meter' }, micLevel));
+  const heardChip = el('div', { class: 'chip heard' });
+  // Légende des hachures, seulement si des notes de la main gauche sont à jouer.
+  const leftHandChip = notes.some((n) => n.hand === 'left')
+    ? el('div', { class: 'chip legend' }, el('span', { class: 'swatch' }), 'main gauche')
+    : null;
+
   const topBar = el(
     'header',
     { class: 'play-bar' },
@@ -84,6 +95,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
       el('div', { class: 'progress' }, progressBar),
       progressText,
     ),
+    el('div', { class: 'chips' }, micChip, heardChip, leftHandChip),
     el(
       'div',
       { class: 'speed', title: 'Vitesse' },
@@ -96,10 +108,6 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   );
 
   // --- Indicateurs sur la scène ---
-  const micLevel = el('div', { class: 'meter-fill' });
-  const micLabel = el('span', {}, '🎤 Micro…');
-  const micChip = el('div', { class: 'chip' }, micLabel, el('div', { class: 'meter' }, micLevel));
-  const heardChip = el('div', { class: 'chip heard' });
   const notice = el('p', { class: 'notice', hidden: true });
   const hint = el('div', { class: 'hint', hidden: true });
   const overlay = el('div', { class: 'overlay', hidden: true });
@@ -108,7 +116,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
     'div',
     { class: 'stage-wrap' },
     canvas,
-    el('div', { class: 'stage-top' }, el('div', { class: 'chips' }, micChip, heardChip), notice, hint),
+    el('div', { class: 'stage-top' }, notice, hint),
     overlay,
   );
   const root = el('main', { class: 'screen play' }, topBar, stageWrap);
@@ -147,9 +155,11 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
 
   function updateInputChip() {
     const devices = app.midiKeyboard.deviceNames;
-    if (devices.length > 0) micLabel.textContent = `🎹 ${devices[0]}`;
-    else if (app.mic.active) micLabel.textContent = `🎤 ${app.mic.deviceName}`;
-    else micLabel.textContent = micError ? '🎤 Micro coupé' : '🎤 Micro…';
+    micIcon.textContent = devices.length > 0 ? '🎹' : '🎤';
+    if (devices.length > 0) micLabel.textContent = devices[0];
+    else if (app.mic.active) micLabel.textContent = app.mic.deviceName;
+    else micLabel.textContent = micError ? 'Micro coupé' : 'Micro…';
+    micChip.title = micLabel.textContent;
     micChip.classList.toggle('off', !app.mic.active && devices.length === 0 && micError !== null);
 
     if (micError && devices.length === 0) {
@@ -254,7 +264,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
     renderer.draw({
       notes: engine.notes,
       time: engine.time,
-      targetIndex: engine.nextIndex,
+      targetStep: engine.nextStep,
       targetPlayable: engine.targetPlayable,
       waiting: engine.waiting,
       heard,
@@ -262,8 +272,8 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
       showKeyLabels: app.settings.showKeyLabels,
     });
 
-    progressBar.style.width = `${(engine.nextIndex / Math.max(1, engine.notes.length)) * 100}%`;
-    progressText.textContent = `${engine.nextIndex} / ${engine.notes.length}`;
+    progressBar.style.width = `${(engine.nextStep / Math.max(1, engine.steps.length)) * 100}%`;
+    progressText.textContent = `${engine.nextStep} / ${engine.steps.length}`;
     micLevel.style.width = `${Math.min(100, Math.sqrt(app.mic.tracker.level / 0.2) * 100)}%`;
     heardChip.textContent = heard !== null ? `Entendu : ${noteName(heard)}` : 'Entendu : —';
 
@@ -273,7 +283,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
     hint.hidden = !showEarly && !showWaiting;
     hint.classList.toggle('early', showEarly);
     if (showEarly) hint.textContent = 'Un peu tôt ! Attends que la note touche le clavier';
-    else if (showWaiting) hint.textContent = `Joue ${noteName(target.midi)} — la touche en couleur`;
+    else if (showWaiting) hint.textContent = waitingHint(target.notes.map((n) => n.midi));
 
     frameId = requestAnimationFrame(frame);
   };
@@ -293,6 +303,13 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
       music?.dispose();
     },
   };
+}
+
+/** « Joue Sol — la touche en couleur », ou pour un accord « Joue Do ou Mi — une des touches en couleur ». */
+function waitingHint(midis: number[]): string {
+  const names = [...new Set(midis.map(noteName))];
+  if (names.length === 1) return `Joue ${names[0]} — la touche en couleur`;
+  return `Joue ${names.slice(0, -1).join(', ')} ou ${names[names.length - 1]} — une des touches en couleur`;
 }
 
 function button(label: string, onClick: () => void, primary = false): HTMLButtonElement {

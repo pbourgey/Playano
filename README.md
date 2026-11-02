@@ -10,7 +10,10 @@ Pas de stress, donc : si tu te trompes ou si tu prends ton temps, le défilement
 
 - **Import de fichiers MIDI** (`.mid`, `.midi`, `.kar`) : bouton ou glisser-déposer. Les morceaux sont gardés dans le navigateur.
 - **Choix des pistes** : main droite, main gauche, autres instruments. La batterie est ignorée par défaut et le choix est mémorisé.
-- **Mélodie une note à la fois** : dans chaque accord, on garde la note la plus aiguë. C'est ce que le micro reconnaît le mieux.
+- **Une main ou les deux** : toutes les notes des pistes cochées tombent, accords compris.
+  - Les notes de la main gauche sont **hachurées**, avec un « G ».
+  - Le clavier s'élargit pour couvrir les deux mains.
+  - Pour un accord ou des notes jouées ensemble aux deux mains, **une seule note entendue suffit** pour avancer : le micro du téléphone ne sait pas séparer toutes les notes d'un accord.
 - **Mode attente** :
   - le morceau s'arrête sur la note à jouer et la touche correspondante s'allume ;
   - au bout d'un moment, un rappel « Joue Sol » apparaît ;
@@ -41,11 +44,11 @@ Pendant le morceau, **Espace** ou **Échap** met en pause.
 
 - Pose le téléphone sur le pupitre, **micro vers les cordes**, c'est-à-dire en général le bas du téléphone.
   Sur un piano droit, le pupitre est juste au-dessus des cordes : c'est idéal.
-- Le mode **paysage** affiche des touches plus larges.
+- L'appli est pensée pour le mode **paysage** : touches plus larges, réglages sur deux colonnes.
 - **L'écran reste allumé** pendant le morceau et le test du micro, même si tu ne le touches pas.
   Sur un iPhone trop ancien (avant iOS 16.4), désactive plutôt le verrouillage automatique pendant que tu joues.
 - Avec l'accompagnement, que la musique sorte des écouteurs ou du haut-parleur, l'appli ignore les notes de sa propre musique.
-- Joue **la mélodie seule**, une note à la fois. Si tu joues aussi la main gauche, le micro risque de s'y perdre.
+- À deux mains, une note de chaque étape suffit, mais joue franchement : un accord très doux peut ne pas être reconnu.
   La pédale de sustain ne gêne pas.
 - Pour avoir l'appli en plein écran comme une vraie application, ajoute-la à l'écran d'accueil :
   - sur iPhone : Safari → Partager → « Sur l'écran d'accueil » ;
@@ -55,7 +58,8 @@ Pendant le morceau, **Espace** ou **Échap** met en pause.
 
 L'appli joue elle-même le fichier MIDI, avec un petit synthétiseur au son de piano :
 
-- elle joue toutes les notes **sauf la mélodie**, que tu joues au piano ;
+- elle joue **les pistes que tu n'as pas cochées** (par exemple la main gauche si tu ne joues que la main droite) ;
+- si tu coches toutes les pistes, il n'y a rien à accompagner et l'option est grisée ;
 - un accord qui tombe en même temps que ta note attend que tu l'aies jouée, comme un accompagnateur qui t'écoute ;
 - quand la partition t'attend, la musique se met **en pause au même instant** ;
 - une introduction avant la première note est jouée normalement.
@@ -117,9 +121,9 @@ Ensuite, chaque mise à jour de `main` la republie automatiquement.
 | Dossier | Rôle |
 | --- | --- |
 | `src/midi/` | Lecture des fichiers MIDI (tempo, pistes, canaux) et petit générateur utilisé pour les démos et les tests |
-| `src/song/` | Extraction de la mélodie (une note à la fois) et morceaux de démonstration |
+| `src/song/` | Notes à jouer (deux mains, accords), accompagnement et morceaux de démonstration |
 | `src/audio/` | Micro, détection de hauteur (algorithme YIN), reconnaissance des frappes (`NoteTracker`), synthétiseur et accompagnement synchronisé |
-| `src/game/` | Moteur du mode attente (`GameEngine`) et dessin des notes et du clavier (`Renderer`) |
+| `src/game/` | Moteur du mode attente par étapes (`GameEngine`) et dessin des notes et du clavier (`Renderer`) |
 | `src/ui/` | Écrans : accueil, choix des pistes, jeu, test du micro, réglages |
 | `src/input/` | Clavier MIDI branché (Web MIDI) |
 | `tests/` | Tests automatiques (Vitest) |

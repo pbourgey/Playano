@@ -4,7 +4,7 @@ import { MicrophoneListener } from './audio/microphone';
 import { MidiKeyboardInput } from './input/midiInput';
 import { loadSettings, micGate, saveSettings, type Settings } from './settings';
 import type { MidiNote } from './midi/parser';
-import type { SongNote } from './song/melody';
+import type { SongNote } from './song/playable';
 import type { Screen } from './ui/dom';
 import { homeScreen } from './ui/home';
 import { micTestScreen } from './ui/micTest';

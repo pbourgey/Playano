@@ -5,7 +5,8 @@ export interface RenderState {
   notes: readonly GameNote[];
   /** Position dans le morceau (s). */
   time: number;
-  targetIndex: number;
+  /** Étape à jouer : toutes ses notes sont mises en avant. */
+  targetStep: number;
   targetPlayable: boolean;
   waiting: boolean;
   /** Note entendue en ce moment (micro ou clavier MIDI). */
@@ -47,7 +48,7 @@ export function keyboardRange(midis: readonly number[]): { low: number; high: nu
   low -= pitchClass(low);
   high += 11 - pitchClass(high);
   while (high - low + 1 < 24) {
-    // On élargit du côté où la mélodie est la plus proche du bord.
+    // On élargit du côté où les notes sont les plus proches du bord.
     if (MIDDLE_C - low < high - MIDDLE_C) low -= 12;
     else high += 12;
   }
@@ -62,6 +63,8 @@ export class Renderer {
   private low = 48;
   private high = 83;
   private flashes: Flash[] = [];
+  /** Hachures qui distinguent les notes de la main gauche. */
+  private readonly leftHandPattern: CanvasPattern | null;
 
   /** `keyboardOnly` : le clavier occupe tout le canvas (pas de zone de chute). */
   constructor(
@@ -71,6 +74,7 @@ export class Renderer {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D indisponible.');
     this.ctx = ctx;
+    this.leftHandPattern = stripes(ctx);
   }
 
   get keyboardHeight(): number {
@@ -185,7 +189,7 @@ export class Renderer {
       const inset = key.black ? 1 : 3;
       const x = key.x + inset;
       const w = key.width - inset * 2;
-      const isTarget = i === state.targetIndex;
+      const isTarget = note.step === state.targetStep;
 
       ctx.globalAlpha = note.hit ? 0.3 : 1;
       if (isTarget && state.targetPlayable) {
@@ -196,6 +200,10 @@ export class Renderer {
       roundRect(ctx, x, top, w, columnHeight, Math.min(6, w / 3));
       ctx.fill();
       ctx.shadowBlur = 0;
+      if (note.hand === 'left' && this.leftHandPattern) {
+        ctx.fillStyle = this.leftHandPattern;
+        ctx.fill();
+      }
 
       if (isTarget) {
         ctx.lineWidth = state.waiting ? 2 + pulse * 1.5 : 2;
@@ -210,6 +218,11 @@ export class Renderer {
         ctx.textBaseline = 'bottom';
         ctx.fillStyle = noteTextColor(note.midi);
         ctx.fillText(noteName(note.midi), x + w / 2, bottom - 4, w);
+        // « G » en haut des colonnes de la main gauche, quand il y a la place.
+        if (note.hand === 'left' && columnHeight > fontSize * 2.6) {
+          ctx.textBaseline = 'top';
+          ctx.fillText('G', x + w / 2, top + 4, w);
+        }
       }
       ctx.globalAlpha = 1;
     }
@@ -229,8 +242,10 @@ export class Renderer {
     const top = this.hitY;
     const keyboardHeight = this.keyboardHeight;
     const blackHeight = keyboardHeight * 0.62;
-    const target = state.notes[state.targetIndex];
-    const targetMidi = target && state.targetPlayable ? target.midi : null;
+    const targetMidis = new Set<number>();
+    if (state.targetPlayable) {
+      for (const note of state.notes) if (note.step === state.targetStep) targetMidis.add(note.midi);
+    }
 
     const drawKey = (midi: number, key: KeyRect) => {
       const h = key.black ? blackHeight : keyboardHeight;
@@ -240,8 +255,8 @@ export class Renderer {
       roundRect(ctx, key.x + (key.black ? 0 : 1), top, key.width - (key.black ? 0 : 2), h, 4, true);
       ctx.fill();
 
-      // Touche à jouer : teintée de la couleur de la note.
-      if (midi === targetMidi) {
+      // Touches à jouer : teintées de la couleur de leur note.
+      if (targetMidis.has(midi)) {
         ctx.globalAlpha = key.black ? 0.9 : 0.55;
         ctx.fillStyle = noteColor(midi);
         ctx.fill();
@@ -285,7 +300,7 @@ export class Renderer {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         // Sur la touche à jouer (teintée), un texte foncé reste lisible.
-        ctx.fillStyle = midi === targetMidi ? '#0f172a' : noteColor(midi);
+        ctx.fillStyle = targetMidis.has(midi) ? '#0f172a' : noteColor(midi);
         ctx.fillText(noteName(midi), centerX, top + h - 4, key.width - 2);
       }
       if (midi === MIDDLE_C) {
@@ -325,4 +340,25 @@ function roundRect(
   if (squareTop) ctx.lineTo(x, y);
   else ctx.arcTo(x, y, x + w, y, radius);
   ctx.closePath();
+}
+
+/** Motif de hachures diagonales sombres, posé sur la couleur de la note. */
+function stripes(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (typeof document === 'undefined') return null;
+  const tile = document.createElement('canvas');
+  tile.width = 10;
+  tile.height = 10;
+  const t = tile.getContext('2d');
+  if (!t) return null;
+  t.strokeStyle = 'rgba(0, 0, 0, 0.32)';
+  t.lineWidth = 3;
+  t.beginPath();
+  t.moveTo(-2, 12);
+  t.lineTo(12, -2);
+  t.moveTo(-2, 2);
+  t.lineTo(2, -2);
+  t.moveTo(8, 12);
+  t.lineTo(12, 8);
+  t.stroke();
+  return ctx.createPattern(tile, 'repeat');
 }
