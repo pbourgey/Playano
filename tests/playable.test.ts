@@ -51,6 +51,16 @@ describe('trackHands', () => {
     expect(notes.map((n) => n.hand)).toEqual(['left', 'right']);
   });
 
+  it('reconnaît une piste de basse seule comme la main gauche', () => {
+    expect(trackHands([{ name: 'Grand Piano', notes: [note(31, 0), note(43, 1), note(55, 2)] }])).toEqual(['left']);
+  });
+
+  it('ne met pas de main gauche parmi des instruments aigus', () => {
+    const flute = { name: 'Flute', notes: [note(76, 0), note(84, 1)] };
+    const trombone = { name: 'Trombone', notes: [note(62, 0), note(67, 1)] };
+    expect(trackHands([flute, trombone])).toEqual(['right', 'right']);
+  });
+
   it('considère une mélodie seule comme la main droite', () => {
     expect(trackHands([{ name: 'Track 1', notes: [note(57, 0), note(72, 0)] }])).toEqual(['right']);
   });

@@ -56,6 +56,12 @@ export function openSettingsDialog(app: App): void {
         s.octaveTolerant,
         (v) => app.updateSettings({ octaveTolerant: v }),
       ),
+      toggle(
+        'Sauter les passages sans notes à jouer',
+        "Quand ta partie commence tard ou s'arrête un moment, le morceau avance directement jusqu'à ta prochaine note.",
+        s.skipGaps,
+        (v) => app.updateSettings({ skipGaps: v }),
+      ),
       toggle('Noms des notes sur le clavier', 'Affiche Do, Ré, Mi… sur chaque touche blanche.', s.showKeyLabels, (v) =>
         app.updateSettings({ showKeyLabels: v }),
       ),

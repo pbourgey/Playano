@@ -156,3 +156,50 @@ describe('GameEngine — deux mains et accords', () => {
     expect(engine.stats().total).toBe(3);
   });
 });
+
+describe('GameEngine — passages sans notes à jouer', () => {
+  const late = [
+    { midi: 60, time: 44, duration: 0.5, hand: 'right' as const },
+    { midi: 62, time: 44.5, duration: 0.5, hand: 'right' as const },
+    { midi: 64, time: 70, duration: 1, hand: 'right' as const },
+  ];
+
+  it('démarre juste avant une partie qui commence tard', () => {
+    const engine = new GameEngine(late, { speed: 1, octaveTolerant: false, leadIn: 3, skipGaps: true });
+    expect(engine.time).toBeCloseTo(41);
+    const waitingEngine = new GameEngine(late, { speed: 1, octaveTolerant: false, leadIn: 3 });
+    expect(waitingEngine.time).toBeCloseTo(-3);
+  });
+
+  it('saute une longue pause de la partie et le signale', () => {
+    const engine = new GameEngine(late, { speed: 1, octaveTolerant: false, leadIn: 3, skipGaps: true });
+    advance(engine, 3);
+    engine.play(60);
+    advance(engine, 0.5);
+    engine.play(62);
+    advance(engine, 0.1);
+    expect(engine.skipCount).toBe(1);
+    expect(engine.time).toBeGreaterThan(66.9);
+    expect(engine.time).toBeLessThan(67.2);
+  });
+
+  it('ne saute pas une courte pause', () => {
+    const notes = [
+      { midi: 60, time: 0, duration: 0.5, hand: 'right' as const },
+      { midi: 62, time: 4, duration: 0.5, hand: 'right' as const },
+    ];
+    const engine = new GameEngine(notes, { speed: 1, octaveTolerant: false, leadIn: 3, skipGaps: true });
+    advance(engine, 3);
+    engine.play(60);
+    advance(engine, 1);
+    expect(engine.skipCount).toBe(0);
+  });
+
+  it('n’attend pas une longue fin d’accompagnement sans rien à jouer', () => {
+    const notes = [{ midi: 60, time: 0, duration: 1, hand: 'right' as const }];
+    const engine = new GameEngine(notes, { speed: 1, octaveTolerant: false, leadIn: 0, skipGaps: true, songEnd: 60 });
+    engine.play(60);
+    advance(engine, 2.5);
+    expect(engine.finished).toBe(true);
+  });
+});
