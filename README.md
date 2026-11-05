@@ -22,6 +22,8 @@ Pas de stress, donc : si tu te trompes ou si tu prends ton temps, le défilement
 - **Musique d'accompagnement** : l'appli joue tout ce que tu ne joues pas (main gauche, accords, autres instruments).
   Elle s'arrête exactement en même temps que la partition quand celle-ci t'attend, et repart avec ta note.
 - **Couleur par note** (Do rouge, Ré orange, Mi jaune…), reprise sur les noms du clavier.
+- **Passages sans notes sautés** : si ta partie ne commence qu'au milieu du morceau, ou s'arrête plus de 6 secondes, le morceau avance directement jusqu'à ta prochaine note.
+  Le réglage « Sauter les passages sans notes à jouer » permet de le désactiver.
 - **Vitesse réglable** de 25 % à 150 %, même pendant le morceau.
 - **Bilan en fin de morceau** : notes justes du premier coup, notes jouées en rythme, fausses notes, durée.
 - **Test du micro**, avec réglage de la sensibilité.

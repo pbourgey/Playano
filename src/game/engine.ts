@@ -27,6 +27,8 @@ export interface GameOptions {
   leadIn?: number;
   /** Fin du morceau (s), quand l'accompagnement continue après la dernière note à jouer. */
   songEnd?: number;
+  /** Saute les longs passages où l'élève n'a rien à jouer (intro, pause de sa partie, fin). */
+  skipGaps?: boolean;
 }
 
 /**
@@ -56,6 +58,8 @@ export const EARLY_WINDOW = 0.4;
 const ON_TIME_TOLERANCE = 0.3;
 /** Temps laissé après la dernière note avant d'afficher la fin. */
 const OUTRO = 1;
+/** Au-delà de cette attente sans rien à jouer (s, temps réel), on avance directement. */
+export const MAX_GAP = 6;
 
 /**
  * Logique du mode « attente » : le morceau défile en rythme, mais s'arrête sur
@@ -75,7 +79,11 @@ export class GameEngine {
   waiting = false;
   wrongCount = 0;
   elapsed = 0;
+  /** Nombre de passages sautés : l'affichage s'en sert pour resynchroniser la musique. */
+  skipCount = 0;
   private readonly endTime: number;
+  private readonly leadIn: number;
+  private readonly skipGaps: boolean;
 
   constructor(notes: readonly SongNote[], options: GameOptions) {
     this.notes = [];
@@ -94,10 +102,17 @@ export class GameEngine {
 
     this.speed = options.speed;
     this.octaveTolerant = options.octaveTolerant;
+    this.leadIn = options.leadIn ?? 3;
+    this.skipGaps = options.skipGaps ?? false;
     const first = this.steps[0]?.time ?? 0;
-    this.time = Math.min(0, first) - (options.leadIn ?? 3) * this.speed;
+    this.time = Math.min(0, first) - this.leadIn * this.speed;
+    // Une partie qui ne commence qu'au milieu du morceau : on démarre juste avant sa première note.
+    if (this.skipGaps) this.time = Math.max(this.time, first - this.leadIn * this.speed);
     const notesEnd = this.notes.reduce((end, n) => Math.max(end, n.time + n.duration), 0);
-    this.endTime = Math.max(notesEnd, options.songEnd ?? 0) + OUTRO;
+    let songEnd = options.songEnd ?? 0;
+    // Une longue fin sans rien à jouer n'est pas attendue non plus.
+    if (this.skipGaps && songEnd - notesEnd > MAX_GAP) songEnd = 0;
+    this.endTime = Math.max(notesEnd, songEnd) + OUTRO;
   }
 
   get target(): Step | undefined {
@@ -119,6 +134,10 @@ export class GameEngine {
     if (this.finished) return;
     this.elapsed += dt;
     const target = this.target;
+    if (this.skipGaps && target && (target.time - this.time) / this.speed > MAX_GAP) {
+      this.time = target.time - this.leadIn * this.speed;
+      this.skipCount++;
+    }
     const next = this.time + dt * this.speed;
     if (target && next >= target.time) {
       if (this.waiting) target.waited += dt;

@@ -16,6 +16,8 @@ const MANUAL_HEARD_MS = 300;
 const HINT_AFTER = 1.5;
 /** Durée d'affichage du message « trop tôt » (ms). */
 const EARLY_MESSAGE_MS = 1500;
+/** Durée d'affichage du message « passage sauté » (ms). */
+const SKIP_MESSAGE_MS = 2000;
 
 export function playScreen(app: App, song: SongSource, notes: SongNote[], accompaniment: MidiNote[]): Screen {
   const canvas = el('canvas', { class: 'stage', 'aria-label': 'Notes qui tombent et clavier de piano' });
@@ -36,12 +38,15 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
   let ended = false;
   let manualHeard: { midi: number; at: number } | null = null;
   let earlyAt = -Infinity;
+  let skippedAt = -Infinity;
+  let seenSkips = 0;
 
   function newEngine() {
     return new GameEngine(notes, {
       speed: app.settings.speed,
       octaveTolerant: app.settings.octaveTolerant,
       songEnd: music?.end,
+      skipGaps: app.settings.skipGaps,
     });
   }
 
@@ -192,6 +197,7 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
 
   function restart() {
     engine = newEngine();
+    seenSkips = 0;
     music?.restart(engine.time);
     ended = false;
     setPaused(false);
@@ -251,6 +257,12 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
       engine.update(dt);
       if (engine.finished) showEnd(engine.stats());
     }
+    if (engine.skipCount !== seenSkips) {
+      // Passage sauté : la musique repart du nouvel endroit.
+      seenSkips = engine.skipCount;
+      skippedAt = now;
+      music?.restart(engine.time);
+    }
     // La musique avance exactement quand la partition avance, et s'arrête avec elle.
     music?.sync({
       songTime: engine.time,
@@ -279,10 +291,12 @@ export function playScreen(app: App, song: SongSource, notes: SongNote[], accomp
 
     const target = engine.target;
     const showEarly = !paused && !ended && now - earlyAt < EARLY_MESSAGE_MS;
+    const showSkip = !paused && !ended && now - skippedAt < SKIP_MESSAGE_MS;
     const showWaiting = !paused && !ended && engine.waiting && !!target && target.waited > HINT_AFTER;
-    hint.hidden = !showEarly && !showWaiting;
-    hint.classList.toggle('early', showEarly);
+    hint.hidden = !showEarly && !showWaiting && !showSkip;
+    hint.classList.toggle('early', showEarly || showSkip);
     if (showEarly) hint.textContent = 'Un peu tôt ! Attends que la note touche le clavier';
+    else if (showSkip) hint.textContent = '⏩ Passage sans notes pour toi : on avance';
     else if (showWaiting) hint.textContent = waitingHint(target.notes.map((n) => n.midi));
 
     frameId = requestAnimationFrame(frame);

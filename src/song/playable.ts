@@ -27,21 +27,28 @@ const LEFT_HINT = /gauche|left|\bl\.?h\b|\bmg\b|bass/i;
 const RIGHT_HINT = /droit|right|\br\.?h\b|\bmd\b|m[ée]lod|chant|lead|soprano|treble|voice|vocal/i;
 
 /**
- * Main de chaque piste choisie : d'après son nom, sinon la piste la plus grave
- * est la main gauche. `null` : une piste seule qui couvre les deux mains, à
- * séparer note par note au Do central.
+ * Main de chaque piste choisie : d'après son nom, sinon d'après sa hauteur
+ * (une piste grave est la main gauche). `null` : une piste seule qui couvre
+ * les deux mains, à séparer note par note au Do central.
  */
 export function trackHands(tracks: readonly SourceTrack[]): (Hand | null)[] {
   const named = (t: SourceTrack): Hand | null => (LEFT_HINT.test(t.name) ? 'left' : RIGHT_HINT.test(t.name) ? 'right' : null);
+  const average = (t: SourceTrack) => t.notes.reduce((sum, n) => sum + n.midi, 0) / Math.max(1, t.notes.length);
+  const share = (t: SourceTrack, test: (midi: number) => boolean) =>
+    t.notes.filter((n) => test(n.midi)).length / Math.max(1, t.notes.length);
+  const spansBothHands = (t: SourceTrack) =>
+    share(t, (m) => m < MIDDLE_C - 5) >= 0.15 && share(t, (m) => m > MIDDLE_C + 4) >= 0.15;
+
   if (tracks.length === 1) {
     const [track] = tracks;
-    const pitches = track.notes.map((n) => n.midi);
-    const spansBothHands = pitches.some((m) => m < MIDDLE_C - 5) && pitches.some((m) => m > MIDDLE_C + 4);
-    return [named(track) ?? (spansBothHands ? null : 'right')];
+    if (named(track)) return [named(track)];
+    if (spansBothHands(track)) return [null];
+    return [average(track) < MIDDLE_C - 2 ? 'left' : 'right'];
   }
-  const averages = tracks.map((t) => t.notes.reduce((sum, n) => sum + n.midi, 0) / Math.max(1, t.notes.length));
+  const averages = tracks.map(average);
   const lowest = averages.indexOf(Math.min(...averages));
-  return tracks.map((t, i) => named(t) ?? (i === lowest ? 'left' : 'right'));
+  // La piste la plus grave est la main gauche, à condition d'être vraiment grave.
+  return tracks.map((t, i) => named(t) ?? (i === lowest && averages[i] < MIDDLE_C ? 'left' : 'right'));
 }
 
 /**

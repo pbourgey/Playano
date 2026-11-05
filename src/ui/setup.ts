@@ -8,11 +8,22 @@ import { el, type Screen } from './dom';
 /** Noms de pistes qui désignent souvent la mélodie / main droite. */
 const MELODY_HINT = /droit|right|r\.?h\b|m[ée]lod|chant|lead|soprano|voice|vocal|treble/i;
 
-/** Pistes cochées par défaut : celle qui ressemble à la mélodie, sinon toutes sauf la batterie. */
+/**
+ * Pistes cochées par défaut : celle qui ressemble à la mélodie ; sinon les pistes
+ * de piano (dans un arrangement à plusieurs instruments) ; sinon toutes sauf la batterie.
+ */
 function defaultSelection(tracks: MidiTrack[]): number[] {
   const playable = tracks.map((t, i) => ({ t, i })).filter(({ t }) => t.notes.length > 0 && !isDrumTrack(t));
   const hinted = playable.filter(({ t }) => MELODY_HINT.test(t.name));
-  return (hinted.length > 0 ? hinted : playable).map(({ i }) => i);
+  const pianos = playable.filter(({ t }) => t.program < 8);
+  const chosen = hinted.length > 0 ? hinted : pianos.length > 0 ? pianos : playable;
+  return chosen.map(({ i }) => i);
+}
+
+/** « 0:44 » */
+function formatTime(seconds: number): string {
+  const s = Math.round(seconds);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
 /** Retient le choix des pistes pour la prochaine fois. */
@@ -89,7 +100,15 @@ export function setupScreen(app: App, song: SongSource): Screen {
           el(
             'small',
             {},
-            [instrumentName(track), `${track.notes.length} note${track.notes.length > 1 ? 's' : ''}`, range].filter(Boolean).join(' · '),
+            [
+              instrumentName(track),
+              `${track.notes.length} note${track.notes.length > 1 ? 's' : ''}`,
+              range,
+              // Une partie qui commence tard : l'appli saute directement jusqu'à elle.
+              track.notes.length && track.notes[0].time > 5 ? `commence à ${formatTime(track.notes[0].time)}` : '',
+            ]
+              .filter(Boolean)
+              .join(' · '),
           ),
         ),
       ),

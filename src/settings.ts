@@ -19,6 +19,8 @@ export interface Settings {
   audioDelayMs: number;
   /** Micro choisi dans « Tester le micro » (vide = micro par défaut). */
   micDeviceId: string;
+  /** Saute les longs passages où l'élève n'a rien à jouer (intro, pause de sa partie). */
+  skipGaps: boolean;
 }
 
 const KEY = 'playano.settings';
@@ -33,6 +35,7 @@ const DEFAULTS: Settings = {
   accompanimentVolume: 0.8,
   audioDelayMs: 0,
   micDeviceId: '',
+  skipGaps: true,
 };
 
 export function loadSettings(): Settings {
